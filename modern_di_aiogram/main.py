@@ -1,8 +1,11 @@
 import dataclasses
+import functools
 import inspect
 import typing
 
+import aiogram
 from aiogram import BaseMiddleware, Dispatcher
+from aiogram.dispatcher.event.handler import HandlerObject
 from aiogram.types import TelegramObject, Update
 from modern_di import Container, Scope, providers
 
@@ -39,12 +42,14 @@ class _DiMiddleware(BaseMiddleware):
             await child_container.close_async()
 
 
-def setup_di(dispatcher: Dispatcher, container: Container) -> Container:
+def setup_di(dispatcher: Dispatcher, container: Container, *, auto_inject: bool = False) -> Container:
     dispatcher[_ROOT_CONTAINER_KEY] = container
     container.add_providers(*_CONNECTION_PROVIDERS)
     dispatcher.startup.register(container.open)
     dispatcher.shutdown.register(container.close_async)
     dispatcher.update.outer_middleware(_DiMiddleware(container))
+    if auto_inject:
+        dispatcher.startup.register(functools.partial(_inject_router, dispatcher))
     return container
 
 
@@ -105,3 +110,19 @@ def inject(func: typing.Callable[..., typing.Awaitable[T]]) -> typing.Callable[.
     wrapper.__signature__ = original_signature.replace(parameters=visible_params)  # ty: ignore[unresolved-attribute]
     wrapper.__modern_di_injected__ = True  # ty: ignore[unresolved-attribute]
     return wrapper
+
+
+def _inject_router(router: aiogram.Router) -> None:
+    for sub_router in router.chain_tail:
+        for observer in sub_router.observers.values():
+            if observer.event_name == "update":
+                continue
+            for handler in observer.handlers:
+                if not getattr(handler.callback, "__modern_di_injected__", False):
+                    wrapped = HandlerObject(
+                        callback=inject(handler.callback),
+                        filters=handler.filters,
+                        flags=handler.flags,
+                    )
+                    handler.callback = wrapped.callback
+                    handler.params = wrapped.params
