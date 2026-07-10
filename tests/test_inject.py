@@ -10,6 +10,26 @@ from tests.dependencies import Dependencies, DependentCreator, SimpleCreator
 from tests.factories import make_message_update
 
 
+async def test_inject_forwards_declared_container_param(dispatcher: Dispatcher, bot: Bot) -> None:
+    seen: dict[str, typing.Any] = {}
+
+    @dispatcher.message()
+    @inject
+    async def handler(
+        message: Message,  # noqa: ARG001
+        modern_di_container: Container,
+        app_instance: typing.Annotated[SimpleCreator, FromDI(SimpleCreator)],
+    ) -> None:
+        seen["got_container"] = isinstance(modern_di_container, Container)
+        seen["app"] = app_instance.dep1
+
+    await dispatcher.emit_startup()
+    await dispatcher.feed_update(bot, make_message_update())
+    await dispatcher.emit_shutdown()
+
+    assert seen == {"got_container": True, "app": "original"}
+
+
 async def test_inject_resolves_app_request_and_event(dispatcher: Dispatcher, bot: Bot) -> None:
     seen: dict[str, typing.Any] = {}
 

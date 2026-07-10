@@ -92,13 +92,16 @@ def inject(func: typing.Callable[..., typing.Awaitable[T]]) -> typing.Callable[.
 
     original_signature = inspect.signature(func)
     visible_params = [p for name, p in original_signature.parameters.items() if name not in di_params]
-    if _CHILD_CONTAINER_KEY not in original_signature.parameters:
+    container_param_injected = _CHILD_CONTAINER_KEY not in original_signature.parameters
+    if container_param_injected:
         visible_params.append(
             inspect.Parameter(_CHILD_CONTAINER_KEY, kind=inspect.Parameter.KEYWORD_ONLY, annotation=Container),
         )
 
     async def wrapper(*args: typing.Any, **kwargs: typing.Any) -> T:  # noqa: ANN401
-        container: Container = kwargs.pop(_CHILD_CONTAINER_KEY)
+        container: Container = (
+            kwargs.pop(_CHILD_CONTAINER_KEY) if container_param_injected else kwargs[_CHILD_CONTAINER_KEY]
+        )
         resolved = {name: container.resolve_dependency(marker.dependency) for name, marker in di_params.items()}
         return await func(*args, **kwargs, **resolved)
 

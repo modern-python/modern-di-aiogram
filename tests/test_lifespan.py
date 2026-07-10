@@ -18,8 +18,10 @@ def test_setup_di_returns_the_container() -> None:
 
 async def test_startup_opens_and_shutdown_closes(dispatcher: Dispatcher) -> None:
     container = fetch_di_container(dispatcher)
+    await container.close_async()
+    assert container.closed is True
     await dispatcher.emit_startup()
-    assert container.closed is False
+    assert container.closed is False  # startup wiring reopened it
     await dispatcher.emit_shutdown()
     assert container.closed is True
 
