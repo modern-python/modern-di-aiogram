@@ -22,7 +22,7 @@ version = "0"
 
 [project.urls]
 Homepage = "https://modern-di.modern-python.org"
-Documentation = "https://modern-di.modern-python.org"
+Documentation = "https://modern-di.modern-python.org/integrations/aiogram/"
 Repository = "https://github.com/modern-python/modern-di-aiogram"
 Issues = "https://github.com/modern-python/modern-di-aiogram/issues"
 Changelog = "https://github.com/modern-python/modern-di-aiogram/releases"
