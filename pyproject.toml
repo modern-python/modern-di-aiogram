@@ -32,6 +32,7 @@ dev = [
     "pytest",
     "pytest-cov",
     "pytest-asyncio",
+    "aiogram-dialog>=2,<3",
 ]
 lint = [
     "ty",
