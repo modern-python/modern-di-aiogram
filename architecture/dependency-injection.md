@@ -114,3 +114,71 @@ wrapped. Explicitly decorating a handler with `@inject` still works alongside
 `auto_inject` relies on `HandlerObject.params`, added in aiogram 3.2.0, to
 recompute the observer's cached parameter set after replacing a handler's
 callback — this is why the package requires `aiogram>=3.2,<4`.
+
+## aiogram-dialog
+
+`modern_di_aiogram.dialog` (public surface: `inject`, `FromDI`) adds DI for
+[aiogram-dialog](https://github.com/Tishka17/aiogram_dialog) getters and
+callbacks. aiogram-dialog runs inside aiogram's own dispatch, so it needs no
+container of its own: `setup_di`'s middleware already builds the per-update
+`Scope.REQUEST` child and stashes it under `_CHILD_CONTAINER_KEY` in the
+per-update `data`, which is also `DialogManager.middleware_data`. The
+`FromDI` marker and `_parse_inject_params` are imported unchanged from
+`main` — `FromDI` re-exported from `dialog` is the same marker, so it works
+in handlers and dialog code interchangeably. The only new code is the
+dialog-aware `inject` and its container lookup.
+
+### Call-shape container lookup
+
+aiogram-dialog calls getters and callbacks with different, fixed shapes, and
+`_container_from_call(args, kwargs)` dispatches on them instead of on any
+declared parameter name:
+
+- **Getter** — aiogram-dialog calls `getter(**manager.middleware_data)`, so
+  there are no positional args and the container is a keyword,
+  `kwargs[_CHILD_CONTAINER_KEY]`.
+- **Callbacks** carry a `DialogManager` positionally instead: `on_start` and
+  `on_close` are called as `(data, manager)` (2 args, `_ON_DIALOG_EVENT_ARGS`),
+  so the manager is `args[-1]`; `on_click` (`(event, widget, manager, item?)`)
+  and `on_process_result` (`(start_data, result, manager)`) are 3–4 args, so
+  the manager is always `args[2]`. Either way the container is
+  `manager.middleware_data[_CHILD_CONTAINER_KEY]` — the same dict the getter
+  received as kwargs.
+
+### functools.wraps is safe here
+
+The handler `inject` in `main` deliberately avoids `functools.wraps` because
+aiogram unwraps `__wrapped__` and would defeat the rewritten `__signature__`.
+The dialog `inject` has no such hazard: aiogram-dialog never inspects a
+getter's or callback's signature — getters are always called with
+`**middleware_data` and callbacks always positionally — so there is no
+signature to defeat, and `wrapper` uses `functools.wraps(func)` plainly. This
+also means the dialog `inject` needs no signature rewrite at all: it just
+appends the resolved `FromDI` values as extra keywords via
+`func(*args, **kwargs, **resolved)`.
+
+### Requirements and constraints
+
+- **No runtime `aiogram_dialog` dependency.** The lookup is structural
+  (duck-typed on `.middleware_data`); `dialog.py` imports nothing from
+  `aiogram_dialog`. It is a test dependency only (`aiogram-dialog>=2,<3` in
+  the `dev` group).
+- **Requires `setup_di`.** Dialog DI has no setup of its own — it depends on
+  `setup_di`'s middleware to have already put the child container in
+  `middleware_data`. Without it, the lookup raises `KeyError`.
+- **A getter decorated with `@inject` must still declare `**kwargs`.**
+  aiogram-dialog always calls getters as `getter(**manager.middleware_data)`,
+  which carries more entries than just the DI container (dialog manager,
+  event, etc.) — a bare getter that doesn't accept `**kwargs` raises
+  `TypeError` on that call regardless of `@inject`. This is inherent to
+  aiogram-dialog's own calling convention, not something `inject` imposes.
+- **Don't name a `FromDI` getter param after a `middleware_data` key.** A getter
+  is called as `getter(**middleware_data)`, and `inject` forwards those kwargs
+  plus the resolved dependencies (`func(*args, **kwargs, **resolved)`). If a
+  `FromDI` parameter shares a name with a `middleware_data` entry (e.g. `bot`,
+  `event`, `dialog_manager`), Python raises `TypeError: multiple values for
+  keyword`. Give injected getter params distinct names. (Callbacks are called
+  positionally, so they are unaffected.)
+- **No auto-inject for dialogs.** Getters/callbacks live on `Window`/widget
+  objects with no router-like registry to walk, so only explicit `@inject`
+  is supported.
