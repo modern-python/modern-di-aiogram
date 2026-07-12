@@ -17,8 +17,6 @@ from modern_di_aiogram.dialog import FromDI, inject
 from tests.dependencies import Dependencies, SimpleCreator
 
 
-_TOKEN = "123456:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"  # noqa: S105
-
 trace: list[typing.Any] = []
 
 

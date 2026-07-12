@@ -172,6 +172,13 @@ appends the resolved `FromDI` values as extra keywords via
   event, etc.) — a bare getter that doesn't accept `**kwargs` raises
   `TypeError` on that call regardless of `@inject`. This is inherent to
   aiogram-dialog's own calling convention, not something `inject` imposes.
+- **Don't name a `FromDI` getter param after a `middleware_data` key.** A getter
+  is called as `getter(**middleware_data)`, and `inject` forwards those kwargs
+  plus the resolved dependencies (`func(*args, **kwargs, **resolved)`). If a
+  `FromDI` parameter shares a name with a `middleware_data` entry (e.g. `bot`,
+  `event`, `dialog_manager`), Python raises `TypeError: multiple values for
+  keyword`. Give injected getter params distinct names. (Callbacks are called
+  positionally, so they are unaffected.)
 - **No auto-inject for dialogs.** Getters/callbacks live on `Window`/widget
   objects with no router-like registry to walk, so only explicit `@inject`
   is supported.
