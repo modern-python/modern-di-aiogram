@@ -11,9 +11,9 @@ dependency only.
 import functools
 import typing
 
-from modern_di import Container
+from modern_di import Container, integrations
 
-from modern_di_aiogram.main import _CHILD_CONTAINER_KEY, FromDI, _parse_inject_params
+from modern_di_aiogram.main import _CHILD_CONTAINER_KEY, FromDI
 
 
 __all__ = [
@@ -43,14 +43,14 @@ def inject(
     dependencies as keywords. A getter/callback with no ``FromDI`` is returned
     unchanged.
     """
-    di_params = _parse_inject_params(func)
+    di_params = integrations.parse_markers(func)
     if not di_params:
         return func
 
     @functools.wraps(func)
     async def wrapper(*args: typing.Any, **kwargs: typing.Any) -> typing.Any:  # noqa: ANN401
         container = _container_from_call(args, kwargs)
-        resolved = {name: container.resolve_dependency(marker.dependency) for name, marker in di_params.items()}
+        resolved = integrations.resolve_markers(container, di_params)
         return await func(*args, **kwargs, **resolved)
 
     return wrapper
