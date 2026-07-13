@@ -31,15 +31,12 @@ class _DiMiddleware(BaseMiddleware):
         event: TelegramObject,
         data: dict[str, typing.Any],
     ) -> typing.Any:  # noqa: ANN401
-        child_container = self.container.build_child_container(
+        async with self.container.build_child_container(
             scope=Scope.REQUEST,
             context={Update: event, TelegramObject: typing.cast("Update", event).event},
-        )
-        data[_CHILD_CONTAINER_KEY] = child_container
-        try:
+        ) as child_container:
+            data[_CHILD_CONTAINER_KEY] = child_container
             return await handler(event, data)
-        finally:
-            await child_container.close_async()
 
 
 def setup_di(dispatcher: Dispatcher, container: Container, *, auto_inject: bool = False) -> Container:
