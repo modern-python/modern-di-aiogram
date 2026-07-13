@@ -1,4 +1,3 @@
-import dataclasses
 import functools
 import inspect
 import typing
@@ -7,7 +6,7 @@ import aiogram
 from aiogram import BaseMiddleware, Dispatcher
 from aiogram.dispatcher.event.handler import HandlerObject
 from aiogram.types import TelegramObject, Update
-from modern_di import Container, Scope, providers
+from modern_di import Container, Scope, integrations, providers
 
 
 aiogram_update_provider = providers.ContextProvider(Update, scope=Scope.REQUEST)
@@ -31,15 +30,12 @@ class _DiMiddleware(BaseMiddleware):
         event: TelegramObject,
         data: dict[str, typing.Any],
     ) -> typing.Any:  # noqa: ANN401
-        child_container = self.container.build_child_container(
+        async with self.container.build_child_container(
             scope=Scope.REQUEST,
             context={Update: event, TelegramObject: typing.cast("Update", event).event},
-        )
-        data[_CHILD_CONTAINER_KEY] = child_container
-        try:
+        ) as child_container:
+            data[_CHILD_CONTAINER_KEY] = child_container
             return await handler(event, data)
-        finally:
-            await child_container.close_async()
 
 
 def setup_di(dispatcher: Dispatcher, container: Container, *, auto_inject: bool = False) -> Container:
@@ -58,36 +54,15 @@ def fetch_di_container(dispatcher: Dispatcher) -> Container:
 
 
 T = typing.TypeVar("T")
-T_co = typing.TypeVar("T_co", covariant=True)
 
 
-@dataclasses.dataclass(slots=True, frozen=True)
-class _FromDI(typing.Generic[T_co]):
-    dependency: providers.AbstractProvider[T_co] | type[T_co]
-
-
-def FromDI(dependency: providers.AbstractProvider[T] | type[T]) -> T:  # noqa: N802
-    return typing.cast(T, _FromDI(dependency))
-
-
-def _parse_inject_params(func: typing.Callable[..., typing.Any]) -> dict[str, _FromDI[typing.Any]]:
-    hints = typing.get_type_hints(func, include_extras=True)
-    di_params: dict[str, _FromDI[typing.Any]] = {}
-    for name, hint in hints.items():
-        if name == "return":
-            continue
-        if typing.get_origin(hint) is typing.Annotated:
-            for meta in typing.get_args(hint)[1:]:
-                if isinstance(meta, _FromDI):
-                    di_params[name] = meta
-                    break
-    return di_params
+FromDI = integrations.from_di
 
 
 def inject(func: typing.Callable[..., typing.Awaitable[T]]) -> typing.Callable[..., typing.Awaitable[T]]:
-    di_params = _parse_inject_params(func)
+    di_params = integrations.parse_markers(func)
     if not di_params:
-        func.__modern_di_injected__ = True  # ty: ignore[unresolved-attribute]
+        integrations.mark_injected(func)
         return func
 
     original_signature = inspect.signature(func)
@@ -102,7 +77,7 @@ def inject(func: typing.Callable[..., typing.Awaitable[T]]) -> typing.Callable[.
         container: Container = (
             kwargs.pop(_CHILD_CONTAINER_KEY) if container_param_injected else kwargs[_CHILD_CONTAINER_KEY]
         )
-        resolved = {name: container.resolve_dependency(marker.dependency) for name, marker in di_params.items()}
+        resolved = integrations.resolve_markers(container, di_params)
         return await func(*args, **kwargs, **resolved)
 
     # NOT functools.wraps: aiogram unwraps __wrapped__ and would defeat __signature__.
@@ -111,7 +86,7 @@ def inject(func: typing.Callable[..., typing.Awaitable[T]]) -> typing.Callable[.
     wrapper.__doc__ = func.__doc__
     wrapper.__module__ = func.__module__
     wrapper.__signature__ = original_signature.replace(parameters=visible_params)  # ty: ignore[unresolved-attribute]
-    wrapper.__modern_di_injected__ = True  # ty: ignore[unresolved-attribute]
+    integrations.mark_injected(wrapper)
     return wrapper
 
 
@@ -121,7 +96,7 @@ def _inject_router(router: aiogram.Router) -> None:
             if observer.event_name == "update":
                 continue
             for handler in observer.handlers:
-                if not getattr(handler.callback, "__modern_di_injected__", False):
+                if not integrations.is_injected(handler.callback):
                     wrapped = HandlerObject(
                         callback=inject(handler.callback),
                         filters=handler.filters,

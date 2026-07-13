@@ -46,17 +46,23 @@ was closed on a previous `shutdown` instead of raising `ContainerClosedError`.
 runs once per incoming `Update` and wraps every handler that processes it. On
 each call it:
 
-1. Builds one `Scope.REQUEST` child container via
-   `container.build_child_container(scope=Scope.REQUEST, context={...})`,
-   seeded with `{Update: event, TelegramObject: event.event}` — `event` is the
-   `Update` itself, and `event.event` is aiogram's resolved inner object for
-   that update (`Message`, `CallbackQuery`, etc.).
+1. Opens one `Scope.REQUEST` child container through `Container`'s own
+   `async with` — `container.build_child_container(scope=Scope.REQUEST,
+   context={...})`, seeded with `{Update: event, TelegramObject: event.event}` —
+   `event` is the `Update` itself, and `event.event` is aiogram's resolved inner
+   object for that update (`Message`, `CallbackQuery`, etc.). Entering an
+   already-open container is a no-op, so the `async with` simply pairs the child
+   with a guaranteed close.
 2. Stashes the child under `_CHILD_CONTAINER_KEY` (`"modern_di_container"`) in
    the per-update `data` dict — the same key name `inject`'s rewritten
    handlers pull their container argument from.
-3. Calls the wrapped handler, then closes the child container in a `finally`
-   block via `close_async`, so it is closed whether the handler returns
-   normally or raises.
+3. Calls the wrapped handler inside the block; exiting the `async with` closes
+   the child container, whether the handler returns normally or raises.
+
+The `context` dict is a hand-written literal, not a `bind()` result: it is a
+multi-provider merge (`Update` **and** `TelegramObject`) at a hardcoded
+`Scope.REQUEST`, which is the kit's documented Layer-1 outlier — `bind()`
+classifies a single provider and does not fit this shape, so the literal stays.
 
 Every `FromDI` parameter resolved during that update therefore shares one
 child container, and the child is always closed before the middleware
@@ -64,24 +70,25 @@ returns, including on the error path.
 
 ## Resolution
 
-`FromDI(dependency)` returns an inert marker (`_FromDI`, a frozen dataclass
-wrapping a provider or a bare type) — it does nothing on its own. Parameters
-opt into injection by annotating them
+`FromDI` is `modern_di.integrations.from_di`: `FromDI(dependency)` returns an
+inert `Marker` wrapping a provider or a bare type — it does nothing on its own.
+Parameters opt into injection by annotating them
 `typing.Annotated[SomeType, FromDI(dependency)]`.
 
 `inject` rewrites a handler's signature at decoration time:
 
-1. `_parse_inject_params` scans the resolved type hints for `Annotated`
-   parameters carrying a `_FromDI` marker.
-2. If none are found, the handler is returned unchanged (only marked
-   `__modern_di_injected__ = True`, so `auto_inject` skips it later).
+1. `integrations.parse_markers` scans the resolved type hints for `Annotated`
+   parameters carrying a `Marker`.
+2. If none are found, the handler is returned unchanged (only marked injected
+   via `integrations.mark_injected`, so `auto_inject` skips it later).
 3. Otherwise, `inject` builds a `wrapper` whose visible signature drops every
    DI parameter and adds one keyword-only parameter named
    `_CHILD_CONTAINER_KEY`, typed `Container`. At call time the wrapper pops
-   that keyword argument, resolves each DI parameter via
-   `container.resolve_dependency(marker.dependency)` (which dispatches on
-   whether `dependency` is a provider or a bare type), and calls the original
-   function with the DI arguments filled in.
+   that keyword argument and resolves the DI parameters via
+   `integrations.resolve_markers(container, di_params)` — which calls each
+   `Marker.resolve(container)`, itself `container.resolve_dependency(...)`
+   (dispatching on whether the wrapped dependency is a provider or a bare type)
+   — then calls the original function with the DI arguments filled in.
 4. The wrapper deliberately does **not** use `functools.wraps`: aiogram calls
    `inspect.unwrap` on handler callbacks, which follows `__wrapped__` back to
    the original function and would defeat the rewritten `__signature__` that
@@ -101,15 +108,17 @@ When `setup_di(..., auto_inject=True)`, a `dispatcher.startup` callback
 (`_inject_router`) walks `dispatcher.chain_tail` — every router reachable from
 the dispatcher's router tree — and, for every observer except `update`
 (update-level dispatch is handled by `_DiMiddleware`, not per-handler
-injection), wraps each handler whose callback is not already marked
-`__modern_di_injected__` with `inject`. The rewritten callback and its
+injection), wraps each handler whose callback `integrations.is_injected`
+reports as not yet injected with `inject`. The rewritten callback and its
 recomputed `params` replace the originals on the `HandlerObject` in place.
 
 Because this runs on `startup`, handlers must already be registered on their
 routers before startup fires — a handler registered afterward is never
 wrapped. Explicitly decorating a handler with `@inject` still works alongside
-`auto_inject`: `inject` marks the handler as injected up front, so
-`_inject_router` skips it rather than double-wrapping.
+`auto_inject`: `inject` calls `integrations.mark_injected` up front, so
+`_inject_router` skips it rather than double-wrapping. `mark_injected` and
+`is_injected` share the same `"__modern_di_injected__"` attribute under the
+hood, so the guard behaves identically to a hand-written get/set.
 
 `auto_inject` relies on `HandlerObject.params`, added in aiogram 3.2.0, to
 recompute the observer's cached parameter set after replacing a handler's
@@ -123,10 +132,11 @@ callbacks. aiogram-dialog runs inside aiogram's own dispatch, so it needs no
 container of its own: `setup_di`'s middleware already builds the per-update
 `Scope.REQUEST` child and stashes it under `_CHILD_CONTAINER_KEY` in the
 per-update `data`, which is also `DialogManager.middleware_data`. The
-`FromDI` marker and `_parse_inject_params` are imported unchanged from
-`main` — `FromDI` re-exported from `dialog` is the same marker, so it works
-in handlers and dialog code interchangeably. The only new code is the
-dialog-aware `inject` and its container lookup.
+`FromDI` marker is re-exported unchanged from `main`, and marker parsing and
+resolution reuse `integrations.parse_markers` / `integrations.resolve_markers` —
+`FromDI` re-exported from `dialog` is the same marker, so it works in handlers
+and dialog code interchangeably. The only new code is the dialog-aware `inject`
+and its container lookup.
 
 ### Call-shape container lookup
 
