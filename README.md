@@ -21,6 +21,8 @@
 
 Full guide: [aiogram integration docs](https://modern-di.modern-python.org/integrations/aiogram/)
 
+Usage example: [examples/](./examples)
+
 ## Installation
 
 ```bash
