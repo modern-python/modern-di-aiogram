@@ -12,7 +12,7 @@ def test_fetch_returns_the_same_container(dispatcher: Dispatcher) -> None:
 
 def test_setup_di_returns_the_container() -> None:
     dispatcher = Dispatcher()
-    container = Container(groups=[Dependencies], validate=True)
+    container = Container(groups=[Dependencies])
     assert modern_di_aiogram.setup_di(dispatcher, container) is container
 
 

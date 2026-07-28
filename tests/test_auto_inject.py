@@ -11,7 +11,7 @@ from tests.factories import make_message_update
 
 async def test_auto_inject_resolves_without_decorator(bot: Bot) -> None:
     dispatcher = Dispatcher()
-    setup_di(dispatcher, Container(groups=[Dependencies], validate=True), auto_inject=True)
+    setup_di(dispatcher, Container(groups=[Dependencies]), auto_inject=True)
     seen: dict[str, typing.Any] = {}
 
     @dispatcher.message()
@@ -30,7 +30,7 @@ async def test_auto_inject_resolves_without_decorator(bot: Bot) -> None:
 
 async def test_auto_inject_skips_already_injected(bot: Bot) -> None:
     dispatcher = Dispatcher()
-    setup_di(dispatcher, Container(groups=[Dependencies], validate=True), auto_inject=True)
+    setup_di(dispatcher, Container(groups=[Dependencies]), auto_inject=True)
     seen: dict[str, typing.Any] = {}
 
     @dispatcher.message()

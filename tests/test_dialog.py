@@ -103,7 +103,7 @@ def dialog_setup() -> tuple[BotClient, MockMessageManager]:
     dispatcher.message.register(_start_command, CommandStart())
     dispatcher.include_router(main_dialog)
     dispatcher.include_router(sub_dialog)
-    setup_di(dispatcher, Container(groups=[Dependencies], validate=True))
+    setup_di(dispatcher, Container(groups=[Dependencies]))
     mock = MockMessageManager()
     setup_dialogs(dispatcher, message_manager=mock)
     return BotClient(dispatcher), mock
@@ -170,7 +170,7 @@ async def test_child_closed_per_update() -> None:
     dispatcher = Dispatcher()
     dispatcher.message.register(_start, CommandStart())
     dispatcher.include_router(dialog)
-    setup_di(dispatcher, Container(groups=[Boom], validate=True))
+    setup_di(dispatcher, Container(groups=[Boom]))
     setup_dialogs(dispatcher, message_manager=MockMessageManager())
     client = BotClient(dispatcher)
     await client.dp.emit_startup()

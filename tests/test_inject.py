@@ -81,7 +81,7 @@ async def test_child_container_closed_on_handler_error(bot: Bot) -> None:
         )
 
     dispatcher = Dispatcher()
-    setup_di(dispatcher, Container(groups=[Boom], validate=True))
+    setup_di(dispatcher, Container(groups=[Boom]))
 
     @dispatcher.message()
     @inject
