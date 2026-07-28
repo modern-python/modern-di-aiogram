@@ -52,7 +52,9 @@ class AppGroup(Group):
 
 
 dispatcher = Dispatcher()
-setup_di(dispatcher, Container(groups=[AppGroup], validate=True))
+container = Container(groups=[AppGroup])
+setup_di(dispatcher, container)
+container.validate()  # optional fail-fast; must come after setup_di registers its providers
 
 
 @dispatcher.message()

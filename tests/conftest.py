@@ -22,5 +22,5 @@ async def bot() -> typing.AsyncIterator[Bot]:
 @pytest.fixture
 def dispatcher() -> Dispatcher:
     dispatcher_ = Dispatcher()
-    setup_di(dispatcher_, container=Container(groups=[Dependencies], validate=True))
+    setup_di(dispatcher_, container=Container(groups=[Dependencies]))
     return dispatcher_
