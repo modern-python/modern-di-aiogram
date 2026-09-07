@@ -21,7 +21,7 @@
 
 Full guide: [aiogram integration docs](https://modern-di.modern-python.org/integrations/aiogram/)
 
-Usage example: [examples/](./examples)
+Usage example: [examples/](https://github.com/modern-python/modern-di-aiogram/tree/main/examples)
 
 ## Installation
 
@@ -81,7 +81,7 @@ Pass `auto_inject=True` to `setup_di` to wrap every handler already registered o
 
 ## 📦 [PyPI](https://pypi.org/project/modern-di-aiogram)
 
-## 📝 [License](LICENSE)
+## 📝 [License](https://github.com/modern-python/modern-di-aiogram/blob/main/LICENSE)
 
 ## Part of `modern-python`
 
