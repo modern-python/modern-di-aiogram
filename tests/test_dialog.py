@@ -178,3 +178,23 @@ async def test_child_closed_per_update() -> None:
     await client.dp.emit_shutdown()
 
     assert teardowns == ["closed"]
+
+
+def _dialog_without_setup_di(dialog: Dialog) -> BotClient:
+    dispatcher = Dispatcher()
+    dispatcher.message.register(_start_command, CommandStart())
+    dispatcher.include_router(dialog)
+    setup_dialogs(dispatcher, message_manager=MockMessageManager())
+    return BotClient(dispatcher)
+
+
+async def test_getter_without_setup_di_names_the_fix() -> None:
+    client = _dialog_without_setup_di(Dialog(Window(Format("{name}"), state=MainSG.window, getter=main_getter)))
+    with pytest.raises(RuntimeError, match=r"setup_di\(dispatcher, container\)"):
+        await client.send("/start")
+
+
+async def test_callback_without_setup_di_names_the_fix() -> None:
+    client = _dialog_without_setup_di(Dialog(Window(Const("x"), state=MainSG.window), on_start=on_start))
+    with pytest.raises(RuntimeError, match=r"setup_di\(dispatcher, container\)"):
+        await client.send("/start")

@@ -1,6 +1,7 @@
 import contextlib
 import typing
 
+import pytest
 from aiogram import Bot, Dispatcher
 from aiogram.types import Message
 from modern_di import Container, Group, Scope, providers
@@ -98,3 +99,17 @@ async def test_child_container_closed_on_handler_error(bot: Bot) -> None:
     await dispatcher.emit_shutdown()
 
     assert teardowns == ["closed"]  # per-update child closed (finalizer ran) on the error path
+
+
+async def test_inject_without_setup_di_names_the_fix(bot: Bot) -> None:
+    dispatcher = Dispatcher()
+
+    @dispatcher.message()
+    @inject
+    async def handler(
+        message: Message,
+        _app: typing.Annotated[SimpleCreator, FromDI(SimpleCreator)],
+    ) -> None: ...
+
+    with pytest.raises(RuntimeError, match=r"setup_di\(dispatcher, container\)"):
+        await dispatcher.feed_update(bot, make_message_update())

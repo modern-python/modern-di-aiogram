@@ -13,7 +13,7 @@ import typing
 
 from modern_di import Container, integrations
 
-from modern_di_aiogram.main import _CHILD_CONTAINER_KEY, FromDI
+from modern_di_aiogram.main import FromDI, _fetch_child_container
 
 
 __all__ = [
@@ -27,10 +27,10 @@ _ON_DIALOG_EVENT_ARGS = 2
 def _container_from_call(args: tuple[typing.Any, ...], kwargs: dict[str, typing.Any]) -> Container:
     if not args:
         # getter: aiogram-dialog calls it as getter(**manager.middleware_data)
-        return typing.cast(Container, kwargs[_CHILD_CONTAINER_KEY])
+        return _fetch_child_container(kwargs)
     # callbacks carry a DialogManager positionally: (data, manager) or (event, widget, manager[, item])
     manager = args[-1] if len(args) == _ON_DIALOG_EVENT_ARGS else args[2]
-    return typing.cast(Container, manager.middleware_data[_CHILD_CONTAINER_KEY])
+    return _fetch_child_container(manager.middleware_data)
 
 
 def inject(
