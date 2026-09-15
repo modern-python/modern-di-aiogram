@@ -20,6 +20,18 @@ _ROOT_CONTAINER_KEY = "modern_di_root_container"
 _CHILD_CONTAINER_KEY = "modern_di_container"
 
 
+def _fetch_child_container(data: typing.Mapping[str, typing.Any]) -> Container:
+    try:
+        return typing.cast(Container, data[_CHILD_CONTAINER_KEY])
+    except KeyError:
+        msg = (
+            "No modern-di container found for this update. "
+            "Call setup_di(dispatcher, container) so updates pass through the modern-di middleware "
+            "before using @inject."
+        )
+        raise RuntimeError(msg) from None
+
+
 class _DiMiddleware(BaseMiddleware):
     def __init__(self, container: Container) -> None:
         self.container = container
@@ -74,9 +86,9 @@ def inject(func: typing.Callable[..., typing.Awaitable[T]]) -> typing.Callable[.
         )
 
     async def wrapper(*args: typing.Any, **kwargs: typing.Any) -> T:  # noqa: ANN401
-        container: Container = (
-            kwargs.pop(_CHILD_CONTAINER_KEY) if container_param_injected else kwargs[_CHILD_CONTAINER_KEY]
-        )
+        container = _fetch_child_container(kwargs)
+        if container_param_injected:
+            del kwargs[_CHILD_CONTAINER_KEY]
         resolved = integrations.resolve_markers(container, di_params)
         return await func(*args, **kwargs, **resolved)
 
