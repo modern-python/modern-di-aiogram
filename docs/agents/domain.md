@@ -18,7 +18,7 @@ Single-context repo:
 ├── CONTEXT.md
 ├── docs/adr/
 │   ├── 0001-dialog-support-is-a-submodule.md
-│   └── 0002-per-update-context-stays-a-literal.md
+│   └── 0002-no-auto-inject-for-dialogs.md
 └── modern_di_aiogram/
 ```
 
