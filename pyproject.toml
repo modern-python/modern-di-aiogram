@@ -18,7 +18,13 @@ classifiers = [
     "Typing :: Typed",
     "Topic :: Software Development :: Libraries",
 ]
-dependencies = ["aiogram>=3.2,<4", "modern-di>=3,<4"]
+dependencies = [
+    "aiogram>=3.2,<4",
+    # Not imported here: aiogram pulls pydantic, and pydantic-core ships no cp314 wheel before
+    # pydantic 2.12, so the lowest declared combination has no installable pydantic on 3.14.
+    "pydantic>=2.12; python_version >= '3.14'",
+    "modern-di>=3,<4",
+]
 version = "0"
 
 [project.urls]
