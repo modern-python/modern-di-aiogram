@@ -20,9 +20,13 @@ classifiers = [
 ]
 dependencies = [
     "aiogram>=3.2,<4",
-    # Not imported here: aiogram pulls pydantic, and pydantic-core ships no cp314 wheel before
-    # pydantic 2.12, so the lowest declared combination has no installable pydantic on 3.14.
+    # Not imported here: aiogram 3.2 pins both to versions with no wheel for these interpreters -
+    # pydantic-core gets a cp313 wheel at pydantic 2.8.1 and a cp314 one at 2.12, aiohttp at 3.10.5
+    # and 3.13 respectively.
+    "pydantic>=2.8.1; python_version == '3.13'",
     "pydantic>=2.12; python_version >= '3.14'",
+    "aiohttp>=3.10.5; python_version == '3.13'",
+    "aiohttp>=3.13; python_version >= '3.14'",
     "modern-di>=3,<4",
 ]
 version = "0"
@@ -35,10 +39,11 @@ Issues = "https://github.com/modern-python/modern-di-aiogram/issues"
 Changelog = "https://github.com/modern-python/modern-di-aiogram/releases"
 
 [dependency-groups]
+# Floored so `uv sync --resolution lowest-direct` resolves a usable harness, not each name's first release.
 dev = [
-    "pytest",
-    "pytest-cov",
-    "pytest-asyncio",
+    "pytest>=8",
+    "pytest-cov>=5",
+    "pytest-asyncio>=0.24",
     "aiogram-dialog>=2,<3",
 ]
 lint = [
