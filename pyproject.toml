@@ -21,9 +21,8 @@ classifiers = [
 dependencies = [
     "aiogram>=3.2,<4",
     # Not imported here: aiogram 3.2 pins both to versions with no wheel for these interpreters -
-    # pydantic-core gets a cp313 wheel at pydantic 2.8.1 and a cp314 one at 2.12, aiohttp at 3.10.5
-    # and 3.13 respectively.
-    "pydantic>=2.8.1; python_version == '3.13'",
+    # pydantic-core gets a cp314 wheel at pydantic 2.12, aiohttp a cp313 one at 3.10.5 and a
+    # cp314 one at 3.13.
     "pydantic>=2.12; python_version >= '3.14'",
     "aiohttp>=3.10.5; python_version == '3.13'",
     "aiohttp>=3.13; python_version >= '3.14'",
