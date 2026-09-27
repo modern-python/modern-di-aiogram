@@ -19,7 +19,11 @@ classifiers = [
     "Topic :: Software Development :: Libraries",
 ]
 dependencies = [
-    "aiogram>=3.2,<4",
+    "aiogram>=3.2,<4; python_version < '3.13'",
+    # The first releases whose pins admit the wheel floors below: 3.11 for aiohttp 3.10.5, 3.23 for
+    # pydantic 2.12.
+    "aiogram>=3.11,<4; python_version == '3.13'",
+    "aiogram>=3.23,<4; python_version >= '3.14'",
     # Not imported here: aiogram 3.2 pins both to versions with no wheel for these interpreters -
     # pydantic-core gets a cp314 wheel at pydantic 2.12, aiohttp a cp313 one at 3.10.5 and a
     # cp314 one at 3.13.
@@ -38,7 +42,6 @@ Issues = "https://github.com/modern-python/modern-di-aiogram/issues"
 Changelog = "https://github.com/modern-python/modern-di-aiogram/releases"
 
 [dependency-groups]
-# Floored so `uv sync --resolution lowest-direct` resolves a usable harness, not each name's first release.
 dev = [
     "pytest>=8",
     "pytest-cov>=5",
