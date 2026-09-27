@@ -17,7 +17,7 @@
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![ty](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ty/main/assets/badge/v0.json)](https://github.com/astral-sh/ty)
 
-[Modern-DI](https://github.com/modern-python/modern-di) integration for [aiogram](https://docs.aiogram.dev) 3.x.
+[modern-di](https://github.com/modern-python/modern-di) integration for [aiogram](https://docs.aiogram.dev) 3.x.
 
 Full guide: [aiogram integration docs](https://modern-di.modern-python.org/integrations/aiogram/)
 
