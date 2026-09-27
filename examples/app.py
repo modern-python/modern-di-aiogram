@@ -46,10 +46,10 @@ async def greet(
     await message.answer(service.greet(name))
 
 
-async def _run() -> None:  # pragma: no cover
+async def _run() -> None:  # pragma: no cover - long-polls Telegram with a real BOT_TOKEN; tests feed updates instead
     bot = Bot(token=os.environ["BOT_TOKEN"])
     await dispatcher.start_polling(bot)
 
 
-if __name__ == "__main__":  # pragma: no cover
+if __name__ == "__main__":  # pragma: no cover - script entry point; tests import the module
     asyncio.run(_run())
