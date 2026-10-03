@@ -66,7 +66,7 @@ async def greet(
     await message.answer(f"{settings.greeting}, {message.from_user.first_name}")
 ```
 
-Pass `auto_inject=True` to `setup_di` to wrap every handler already registered on the dispatcher, so individual handlers don't need `@inject` — register handlers before startup for this to take effect. The current `aiogram.types.Update` and the concrete event it carries (`Message`, `CallbackQuery`, …) are resolvable within DI via the pre-built `aiogram_update_provider` / `aiogram_event_provider` context providers. [aiogram-dialog](https://github.com/Tishka17/aiogram_dialog) getters and callbacks are supported via `modern_di_aiogram.dialog` — see the docs.
+Pass `auto_inject=True` to `setup_di` to wrap every handler already registered on the dispatcher, so individual handlers don't need `@inject`. Register handlers before startup for this to take effect. The current `aiogram.types.Update` and the concrete event it carries (`Message`, `CallbackQuery`, and so on) are resolvable within DI via the pre-built `aiogram_update_provider` / `aiogram_event_provider` context providers. [aiogram-dialog](https://github.com/Tishka17/aiogram_dialog) getters and callbacks are supported via `modern_di_aiogram.dialog`; see the docs.
 
 ## API
 
@@ -77,7 +77,7 @@ Pass `auto_inject=True` to `setup_di` to wrap every handler already registered o
 | `inject(handler)` | Decorator for an aiogram handler; resolves its `FromDI`-annotated parameters. Not needed when `setup_di(..., auto_inject=True)` is used. Raises `RuntimeError` naming `setup_di` when an update reaches it without the middleware installed |
 | `fetch_di_container(dispatcher)` | Returns the root `Container` stored on the dispatcher |
 | `aiogram_update_provider` | `ContextProvider` for the current `aiogram.types.Update` (`REQUEST` scope) |
-| `aiogram_event_provider` | `ContextProvider` for the current `aiogram.types.TelegramObject` (`REQUEST` scope) — the concrete event unwrapped from the `Update` |
+| `aiogram_event_provider` | `ContextProvider` for the current `aiogram.types.TelegramObject` (`REQUEST` scope): the concrete event unwrapped from the `Update` |
 
 ## 📦 [PyPI](https://pypi.org/project/modern-di-aiogram)
 
@@ -85,7 +85,7 @@ Pass `auto_inject=True` to `setup_di` to wrap every handler already registered o
 
 ## Part of `modern-python`
 
-Built on [`modern-di`](https://github.com/modern-python/modern-di), a dependency-injection framework with IoC container and scopes.
+Built on [`modern-di`](https://github.com/modern-python/modern-di), a dependency-injection framework with an IoC container and scopes.
 
 Browse the full list of templates and libraries in
-[`modern-python`](https://github.com/modern-python) — see the org profile for the categorized index.
+[`modern-python`](https://github.com/modern-python); the org profile has the categorized index.
