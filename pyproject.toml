@@ -51,7 +51,6 @@ lint = [
     "ty",
     "ruff",
     "eof-fixer",
-    "typing-extensions",
 ]
 
 [build-system]
