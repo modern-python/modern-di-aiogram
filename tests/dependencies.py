@@ -14,11 +14,8 @@ class DependentCreator:
     dep1: SimpleCreator
 
 
-def fetch_event_type(event: TelegramObject | None = None) -> str:
-    # Optional-with-default so an explicit container.validate() treats the event
-    # as optional (the providers are only registered by setup_di); the real
-    # event still injects at runtime.
-    return type(event).__name__ if event else ""
+def fetch_event_type(event: TelegramObject) -> str:
+    return type(event).__name__
 
 
 class Dependencies(Group):
