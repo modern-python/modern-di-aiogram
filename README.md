@@ -110,9 +110,10 @@ With `manage_lifespan=False` the plugin does not wait for updates in flight eith
 | `aiogram_update_provider` | `ContextProvider` for the current `aiogram.types.Update` (`REQUEST` scope) |
 | `aiogram_event_provider` | `ContextProvider` for the current `aiogram.types.TelegramObject` (`REQUEST` scope): the concrete event unwrapped from the `Update` |
 
-## 📦 [PyPI](https://pypi.org/project/modern-di-aiogram)
+## Links
 
-## 📝 [License](https://github.com/modern-python/modern-di-aiogram/blob/main/LICENSE)
+- [PyPI](https://pypi.org/project/modern-di-aiogram)
+- [License](https://github.com/modern-python/modern-di-aiogram/blob/main/LICENSE)
 
 ## Part of `modern-python`
 
