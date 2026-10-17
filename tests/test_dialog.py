@@ -1,3 +1,6 @@
+import itertools
+import random
+import time
 import typing
 
 import pytest
@@ -6,6 +9,7 @@ from aiogram.filters import CommandStart
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import Message
 from aiogram_dialog import Dialog, DialogManager, StartMode, Window, setup_dialogs
+from aiogram_dialog.api.entities import stack
 from aiogram_dialog.test_tools import BotClient, MockMessageManager
 from aiogram_dialog.test_tools.keyboard import InlineButtonTextLocator
 from aiogram_dialog.widgets.kbd import Button
@@ -107,6 +111,17 @@ def dialog_setup() -> tuple[BotClient, MockMessageManager]:
     mock = MockMessageManager()
     setup_dialogs(dispatcher, message_manager=mock)
     return BotClient(dispatcher), mock
+
+
+@pytest.fixture(autouse=True)
+def _sequential_intent_ids(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(stack, "new_int_id", itertools.count(1).__next__)
+
+
+def test_intent_ids_unique_when_randint_repeats(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(random, "randint", lambda _a, _b: 0)
+    monkeypatch.setattr(time, "time", lambda: 0.0)
+    assert stack.new_id() != stack.new_id()
 
 
 async def test_getter_and_on_start_resolve(dialog_setup: tuple[BotClient, MockMessageManager]) -> None:
