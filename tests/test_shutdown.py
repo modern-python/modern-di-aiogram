@@ -138,7 +138,7 @@ async def test_shutdown_timeout_closes_root_and_warns(bot: Bot, caplog: pytest.L
     assert container.closed is True
     assert 0.1 <= elapsed < 1  # noqa: PLR2004
     assert [record.getMessage() for record in caplog.records if record.name.startswith("modern_di_aiogram")] == [
-        "Closing the root container with 1 update(s) still in flight"
+        "Stopped waiting with 1 update(s) still in flight"
     ]
     slow.release.set()
     with pytest.raises(ContainerClosedError):
