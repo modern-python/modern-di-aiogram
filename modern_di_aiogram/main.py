@@ -89,7 +89,7 @@ def setup_di(
                 async with asyncio.timeout(shutdown_timeout):
                     await middleware.wait_idle()
             except TimeoutError:
-                logger.warning("Closing the root container with %d update(s) still in flight", middleware.in_flight)
+                logger.warning("Stopped waiting with %d update(s) still in flight", middleware.in_flight)
 
         async def close_root() -> None:
             await container.close_async()
