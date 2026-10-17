@@ -19,8 +19,8 @@ are this package's own.
 **Root container**:
 The `Container` handed to `setup_di` and stored on the dispatcher; `fetch_di_container` reads it
 back. By default it tracks the dispatcher's lifecycle — opened on `startup`, closed on `shutdown`
-once the updates in flight finish; with `manage_lifespan=False` the caller opens and closes it instead. No handler ever resolves from
-it directly.
+once the updates in flight finish; with `manage_lifespan=False` the caller opens and closes it
+instead. No handler ever resolves from it directly.
 
 **Per-update child container**:
 The single `Scope.REQUEST` child the middleware builds for one incoming `Update`, seeded with that
