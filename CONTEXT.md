@@ -18,8 +18,8 @@ are this package's own.
 
 **Root container**:
 The `Container` handed to `setup_di` and stored on the dispatcher; `fetch_di_container` reads it
-back. By default it tracks the dispatcher's lifecycle — opened on `startup`, closed on `shutdown`
-after every other shutdown handler, once the updates in flight finish; with
+back. By default it tracks the dispatcher's lifecycle — opened on `startup`; on `shutdown` the
+updates in flight finish first, then the other shutdown handlers run, then it is closed; with
 `manage_lifespan=False` the caller opens and closes it instead. No handler ever resolves from it directly.
 
 **Per-update child container**:
