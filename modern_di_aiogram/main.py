@@ -50,11 +50,14 @@ class _DiMiddleware(BaseMiddleware):
             return await handler(event, data)
 
 
-def setup_di(dispatcher: Dispatcher, container: Container, *, auto_inject: bool = False) -> Container:
+def setup_di(
+    dispatcher: Dispatcher, container: Container, *, auto_inject: bool = False, manage_lifespan: bool = True
+) -> Container:
     dispatcher[_ROOT_CONTAINER_KEY] = container
     container.add_providers(*_CONNECTION_PROVIDERS)
-    dispatcher.startup.register(container.open)
-    dispatcher.shutdown.register(container.close_async)
+    if manage_lifespan:
+        dispatcher.startup.register(container.open)
+        dispatcher.shutdown.register(container.close_async)
     dispatcher.update.outer_middleware(_DiMiddleware(container))
     if auto_inject:
         dispatcher.startup.register(functools.partial(_inject_router, dispatcher))
