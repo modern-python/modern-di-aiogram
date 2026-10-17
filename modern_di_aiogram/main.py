@@ -81,7 +81,9 @@ def inject(func: typing.Callable[..., T]) -> typing.Callable[..., T]:
     visible_params = [p for name, p in original_signature.parameters.items() if name not in di_params]
     container_param_injected = _CHILD_CONTAINER_KEY not in original_signature.parameters
     if container_param_injected:
-        visible_params.append(
+        has_var_keyword = bool(visible_params) and visible_params[-1].kind is inspect.Parameter.VAR_KEYWORD
+        visible_params.insert(
+            len(visible_params) - has_var_keyword,
             inspect.Parameter(_CHILD_CONTAINER_KEY, kind=inspect.Parameter.KEYWORD_ONLY, annotation=Container),
         )
 
@@ -89,6 +91,8 @@ def inject(func: typing.Callable[..., T]) -> typing.Callable[..., T]:
         container = _fetch_child_container(kwargs)
         if container_param_injected:
             del kwargs[_CHILD_CONTAINER_KEY]
+        for name in di_params:
+            kwargs.pop(name, None)
         return integrations.resolve_markers(container, di_params)
 
     wrapper: typing.Callable[..., typing.Any]
