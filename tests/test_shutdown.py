@@ -129,7 +129,8 @@ async def test_shutdown_timeout_closes_root_and_warns(bot: Bot, caplog: pytest.L
     loop = asyncio.get_running_loop()
     started_at = loop.time()
     with caplog.at_level(logging.WARNING, logger="modern_di_aiogram"):
-        await dispatcher.emit_shutdown()
+        # A separate task: on 3.11, coverage loses this frame's lines after the timeout cancels into it.
+        await asyncio.create_task(dispatcher.emit_shutdown())
     elapsed = loop.time() - started_at
 
     assert container.closed is True
