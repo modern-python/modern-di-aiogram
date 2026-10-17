@@ -6,7 +6,7 @@ import warnings
 import pytest
 from aiogram import Bot, Dispatcher
 from aiogram.dispatcher.event.bases import UNHANDLED
-from aiogram.types import Message, Update
+from aiogram.types import ErrorEvent, Message, Update
 from modern_di import Container, Group, Scope, providers
 
 from modern_di_aiogram import FromDI, inject, setup_di
@@ -102,6 +102,32 @@ async def test_child_container_closed_on_handler_error(bot: Bot) -> None:
     await dispatcher.emit_shutdown()
 
     assert teardowns == ["closed"]  # per-update child closed (finalizer ran) on the error path
+
+
+async def test_inject_resolves_in_an_error_handler(dispatcher: Dispatcher, bot: Bot) -> None:
+    seen: dict[str, typing.Any] = {}
+
+    @dispatcher.message()
+    async def handler(message: Message) -> None:  # noqa: ARG001
+        msg = "boom"
+        raise ValueError(msg)
+
+    @dispatcher.errors()
+    @inject
+    async def on_error(
+        event: ErrorEvent,
+        request_instance: typing.Annotated[DependentCreator, FromDI(Dependencies.request_factory)],
+        event_type: typing.Annotated[str, FromDI(Dependencies.event_type)],
+    ) -> None:
+        seen["exception"] = str(event.exception)
+        seen["request_ok"] = isinstance(request_instance, DependentCreator)
+        seen["event_type"] = event_type
+
+    await dispatcher.emit_startup()
+    await dispatcher.feed_update(bot, make_message_update())
+    await dispatcher.emit_shutdown()
+
+    assert seen == {"exception": "boom", "request_ok": True, "event_type": "Message"}
 
 
 async def test_inject_without_setup_di_names_the_fix(bot: Bot) -> None:

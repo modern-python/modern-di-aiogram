@@ -8,7 +8,7 @@ import typing
 import aiogram
 from aiogram import BaseMiddleware, Dispatcher
 from aiogram.dispatcher.event.handler import HandlerObject
-from aiogram.types import TelegramObject, Update
+from aiogram.types import ErrorEvent, TelegramObject, Update
 from aiogram.types.update import UpdateTypeLookupError
 from modern_di import Container, Scope, integrations, providers
 
@@ -50,9 +50,10 @@ class _DiMiddleware(BaseMiddleware):
         event: TelegramObject,
         data: dict[str, typing.Any],
     ) -> typing.Any:  # noqa: ANN401
-        context: dict[type[typing.Any], typing.Any] = {Update: event}
+        update = event.update if isinstance(event, ErrorEvent) else event
+        context: dict[type[typing.Any], typing.Any] = {Update: update}
         with contextlib.suppress(UpdateTypeLookupError):
-            context[TelegramObject] = typing.cast("Update", event).event
+            context[TelegramObject] = typing.cast("Update", update).event
         self.in_flight += 1
         try:
             async with self.container.build_child_container(scope=Scope.REQUEST, context=context) as child_container:
@@ -116,6 +117,7 @@ def setup_di(
 
         dispatcher.startup.register(open_root)
     dispatcher.update.outer_middleware(middleware)
+    dispatcher.errors.outer_middleware(middleware)
     if auto_inject:
         dispatcher.startup.register(functools.partial(_inject_router, dispatcher))
     return container

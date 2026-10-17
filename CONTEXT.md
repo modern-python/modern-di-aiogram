@@ -26,7 +26,8 @@ updates in flight finish first, then the other shutdown handlers run, then it is
 The single `Scope.REQUEST` child the middleware builds for one incoming `Update`, seeded with that
 `Update` and its concrete event. Every handler, dialog getter and dialog callback that the update
 reaches shares this one container, and it is closed when the middleware returns, on the error path
-included.
+included. An error handler runs after that close, so the same middleware on `dispatcher.errors`
+builds it a second child, seeded with the failing `Update` and its event.
 _Avoid_: request container. The unit of work is an update, not an HTTP request, the same reason
 `modern-di` rejects "request" for `Connection`.
 
