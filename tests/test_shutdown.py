@@ -4,7 +4,7 @@ import logging
 import typing
 
 import pytest
-from aiogram import Bot, Dispatcher
+from aiogram import Bot, Dispatcher, Router
 from aiogram.methods import GetMe, TelegramMethod
 from aiogram.types import Message, User
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
@@ -42,11 +42,13 @@ class SlowHandler:
 
 def _make_dispatcher(slow: SlowHandler, **setup_kwargs: typing.Any) -> tuple[Dispatcher, Container]:  # noqa: ANN401
     dispatcher = Dispatcher()
+    emit_shutdown = dispatcher.emit_shutdown
 
-    @dispatcher.shutdown()
-    async def mark_shutdown_started() -> None:
+    async def mark_shutdown_started(*args: typing.Any, **kwargs: typing.Any) -> None:  # noqa: ANN401
         slow.shutdown_started.set()
+        await emit_shutdown(*args, **kwargs)
 
+    dispatcher.emit_shutdown = mark_shutdown_started  # ty: ignore[invalid-assignment]
     container = setup_di(dispatcher, Container(groups=[Resources]), **setup_kwargs)
 
     @dispatcher.message()
@@ -170,4 +172,72 @@ async def test_manage_lifespan_false_neither_waits_nor_closes(bot: Bot) -> None:
             await dispatcher.emit_shutdown()
         assert container.closed is False
         slow.release.set()
+        await feeding
+
+
+@pytest.mark.parametrize("on_sub_router", [False, True])
+@pytest.mark.parametrize("register_before_setup_di", [False, True])
+async def test_shutdown_handlers_run_after_in_flight_updates(
+    bot: Bot, on_sub_router: bool, register_before_setup_di: bool
+) -> None:
+    dispatcher = Dispatcher()
+    router = dispatcher.include_router(Router()) if on_sub_router else dispatcher
+    container = Container(groups=[Resources])
+    release = asyncio.Event()
+
+    async def user_hook() -> None:
+        container.resolve_provider(Resources.app_resource).log.append("hook")
+
+    if register_before_setup_di:
+        router.shutdown.register(user_hook)
+        setup_di(dispatcher, container)
+    else:
+        setup_di(dispatcher, container)
+        router.shutdown.register(user_hook)
+
+    @router.message()
+    async def handler(message: Message, modern_di_container: Container) -> None:  # noqa: ARG001
+        await release.wait()
+        modern_di_container.resolve_provider(Resources.app_resource).log.append("handled")
+
+    logs: list[list[str]] = []
+    for _ in range(2):
+        release.clear()
+        await dispatcher.emit_startup()
+        feeding = asyncio.create_task(dispatcher.feed_update(bot, make_message_update()))
+        resource = container.resolve_provider(Resources.app_resource)
+        shutdown = asyncio.create_task(dispatcher.emit_shutdown())
+        for _ in range(10):
+            await asyncio.sleep(0)
+        release.set()
+        await shutdown
+        await feeding
+        logs.append(resource.log)
+
+    assert logs == [["handled", "hook", "finalized"]] * 2
+
+
+def _timeout_warnings(caplog: pytest.LogCaptureFixture) -> int:
+    return sum(record.name.startswith("modern_di_aiogram") for record in caplog.records)
+
+
+@pytest.mark.parametrize("with_startup", [False, True])
+async def test_shutdown_waits_once_per_cycle(bot: Bot, caplog: pytest.LogCaptureFixture, with_startup: bool) -> None:
+    slow = SlowHandler()
+    dispatcher, container = _make_dispatcher(slow, shutdown_timeout=0.01)
+    dispatcher.include_router(Router())
+    feeding = asyncio.create_task(dispatcher.feed_update(bot, make_message_update()))
+    await slow.started.wait()
+
+    with caplog.at_level(logging.WARNING, logger="modern_di_aiogram"):
+        for cycle in (1, 2):
+            if with_startup:
+                await dispatcher.emit_startup()
+            await asyncio.create_task(dispatcher.emit_shutdown())
+            assert _timeout_warnings(caplog) == cycle
+            assert container.closed is True
+            dispatcher.include_router(Router())
+
+    slow.release.set()
+    with pytest.raises(ContainerClosedError):
         await feeding

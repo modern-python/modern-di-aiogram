@@ -1,7 +1,9 @@
 import dataclasses
 import typing
+from collections.abc import Callable
 
-from aiogram import Bot, Dispatcher
+import pytest
+from aiogram import Bot, Dispatcher, Router
 from aiogram.types import Message
 from modern_di import Container, Group, Scope, providers
 
@@ -102,3 +104,86 @@ async def test_manage_lifespan_false_lets_the_user_own_the_root(bot: Bot) -> Non
     assert container.closed is True
     assert seen["app"].closed_count == 1
     assert seen["request"].closed_count == 1
+
+
+class _CloseCountingContainer(Container):
+    close_calls = 0
+
+    async def close_async(self) -> None:
+        self.close_calls += 1
+        await super().close_async()
+
+
+def _shutdown_on_dispatcher(dispatcher: Dispatcher) -> Router:
+    return dispatcher
+
+
+def _shutdown_on_sub_router(dispatcher: Dispatcher) -> Router:
+    return dispatcher.include_router(Router())
+
+
+def _shutdown_on_nested_router(dispatcher: Dispatcher) -> Router:
+    router = dispatcher.include_router(Router())
+    router.include_router(Router())
+    return router
+
+
+@pytest.mark.parametrize("pick_router", [_shutdown_on_dispatcher, _shutdown_on_sub_router, _shutdown_on_nested_router])
+@pytest.mark.parametrize("register_before_setup_di", [False, True])
+async def test_shutdown_handlers_see_the_open_root(
+    pick_router: Callable[[Dispatcher], Router], register_before_setup_di: bool
+) -> None:
+    dispatcher = Dispatcher()
+    container = _CloseCountingContainer(groups=[Resources])
+    seen: list[tuple[Resource, int]] = []
+
+    async def user_hook() -> None:
+        resource = container.resolve_provider(Resources.app_resource)
+        seen.append((resource, resource.closed_count))
+
+    if register_before_setup_di:
+        pick_router(dispatcher).shutdown.register(user_hook)
+        modern_di_aiogram.setup_di(dispatcher, container)
+    else:
+        modern_di_aiogram.setup_di(dispatcher, container)
+        pick_router(dispatcher).shutdown.register(user_hook)
+
+    for cycle in (1, 2):
+        await dispatcher.emit_startup()
+        await dispatcher.emit_shutdown()
+        assert [(resource.closed_count, at_hook) for resource, at_hook in seen] == [(1, 0)] * cycle
+        assert container.closed is True
+        assert container.close_calls == cycle
+
+
+async def test_router_included_between_runs_sees_the_open_root() -> None:
+    dispatcher = Dispatcher()
+    container = _CloseCountingContainer(groups=[Resources])
+    modern_di_aiogram.setup_di(dispatcher, container)
+    dispatcher.include_router(Router())
+    await dispatcher.emit_startup()
+    await dispatcher.emit_shutdown()
+    seen: list[tuple[Resource, int]] = []
+
+    @dispatcher.include_router(Router()).shutdown()
+    async def user_hook() -> None:
+        resource = container.resolve_provider(Resources.app_resource)
+        seen.append((resource, resource.closed_count))
+
+    await dispatcher.emit_startup()
+    await dispatcher.emit_shutdown()
+
+    assert [(resource.closed_count, at_hook) for resource, at_hook in seen] == [(1, 0)]
+    assert container.close_calls == 2  # noqa: PLR2004
+
+
+async def test_shutdown_without_startup_closes_the_root() -> None:
+    dispatcher = Dispatcher()
+    container = modern_di_aiogram.setup_di(dispatcher, _CloseCountingContainer(groups=[Resources]))
+    dispatcher.include_router(Router())
+    resource = container.resolve_provider(Resources.app_resource)
+
+    await dispatcher.emit_shutdown()
+
+    assert container.closed is True
+    assert resource.closed_count == 1

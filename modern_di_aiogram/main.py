@@ -84,16 +84,35 @@ def setup_di(
     middleware = _DiMiddleware(container)
     if manage_lifespan:
 
-        async def close_root() -> None:
+        async def wait_in_flight() -> None:
             try:
                 async with asyncio.timeout(shutdown_timeout):
                     await middleware.wait_idle()
             except TimeoutError:
                 logger.warning("Closing the root container with %d update(s) still in flight", middleware.in_flight)
+
+        async def close_root() -> None:
             await container.close_async()
 
-        dispatcher.startup.register(container.open)
+        dispatcher.shutdown.register(wait_in_flight)
         dispatcher.shutdown.register(close_root)
+        close_observer = dispatcher.shutdown
+
+        def open_root() -> None:
+            nonlocal close_observer
+            container.open()
+            dispatcher.shutdown.handlers = [
+                HandlerObject(callback=wait_in_flight),
+                *(handler for handler in dispatcher.shutdown.handlers if handler.callback is not wait_in_flight),
+            ]
+            close_observer.handlers = [
+                handler for handler in close_observer.handlers if handler.callback is not close_root
+            ]
+            *_, last_router = dispatcher.chain_tail
+            close_observer = last_router.shutdown
+            close_observer.register(close_root)
+
+        dispatcher.startup.register(open_root)
     dispatcher.update.outer_middleware(middleware)
     if auto_inject:
         dispatcher.startup.register(functools.partial(_inject_router, dispatcher))
