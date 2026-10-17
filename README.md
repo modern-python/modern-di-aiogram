@@ -66,7 +66,7 @@ async def greet(
     await message.answer(f"{settings.greeting}, {message.from_user.first_name}")
 ```
 
-Pass `auto_inject=True` to `setup_di` to wrap every handler already registered on the dispatcher, so individual handlers don't need `@inject`. Register handlers before startup for this to take effect. The current `aiogram.types.Update` and the concrete event it carries (`Message`, `CallbackQuery`, and so on) are resolvable within DI via the pre-built `aiogram_update_provider` / `aiogram_event_provider` context providers. [aiogram-dialog](https://github.com/Tishka17/aiogram_dialog) getters and callbacks are supported via `modern_di_aiogram.dialog`; see the docs.
+Pass `auto_inject=True` to `setup_di` to wrap every handler already registered on the dispatcher, so individual handlers don't need `@inject`. Register handlers before startup for this to take effect. Sync handlers work with both `@inject` and `auto_inject`: aiogram runs them in a worker thread as usual, and their `FromDI` parameters resolve from the same per-update child container. The current `aiogram.types.Update` and the concrete event it carries (`Message`, `CallbackQuery`, and so on) are resolvable within DI via the pre-built `aiogram_update_provider` / `aiogram_event_provider` context providers. [aiogram-dialog](https://github.com/Tishka17/aiogram_dialog) getters and callbacks are supported via `modern_di_aiogram.dialog`; see the docs.
 
 ## API
 
@@ -74,7 +74,7 @@ Pass `auto_inject=True` to `setup_di` to wrap every handler already registered o
 |---|---|
 | `setup_di(dispatcher, container, *, auto_inject=False)` | Stores the container on the dispatcher, registers the update/event providers, wires `dispatcher.startup`/`dispatcher.shutdown` to open/close it, and installs the per-update middleware. With `auto_inject=True`, also wraps every handler already registered at startup |
 | `FromDI(dependency)` | Inert marker (used with `@inject`) that resolves a provider or type from the per-update child container |
-| `inject(handler)` | Decorator for an aiogram handler; resolves its `FromDI`-annotated parameters. Not needed when `setup_di(..., auto_inject=True)` is used. Raises `RuntimeError` naming `setup_di` when an update reaches it without the middleware installed |
+| `inject(handler)` | Decorator for an aiogram handler, sync or async; resolves its `FromDI`-annotated parameters and returns a wrapper of the same kind. Not needed when `setup_di(..., auto_inject=True)` is used. Raises `RuntimeError` naming `setup_di` when an update reaches it without the middleware installed |
 | `fetch_di_container(dispatcher)` | Returns the root `Container` stored on the dispatcher |
 | `aiogram_update_provider` | `ContextProvider` for the current `aiogram.types.Update` (`REQUEST` scope) |
 | `aiogram_event_provider` | `ContextProvider` for the current `aiogram.types.TelegramObject` (`REQUEST` scope): the concrete event unwrapped from the `Update` |
