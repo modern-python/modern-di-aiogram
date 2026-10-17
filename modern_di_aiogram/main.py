@@ -1,5 +1,7 @@
+import asyncio
 import functools
 import inspect
+import logging
 import typing
 
 import aiogram
@@ -19,6 +21,8 @@ _CONNECTION_PROVIDERS = (aiogram_update_provider, aiogram_event_provider)
 _ROOT_CONTAINER_KEY = "modern_di_root_container"
 _CHILD_CONTAINER_KEY = "modern_di_container"
 
+logger = logging.getLogger(__name__)
+
 
 def _fetch_child_container(data: typing.Mapping[str, typing.Any]) -> Container:
     try:
@@ -35,6 +39,8 @@ def _fetch_child_container(data: typing.Mapping[str, typing.Any]) -> Container:
 class _DiMiddleware(BaseMiddleware):
     def __init__(self, container: Container) -> None:
         self.container = container
+        self.in_flight = 0
+        self._idle: asyncio.Event | None = None
 
     async def __call__(
         self,
@@ -42,23 +48,53 @@ class _DiMiddleware(BaseMiddleware):
         event: TelegramObject,
         data: dict[str, typing.Any],
     ) -> typing.Any:  # noqa: ANN401
-        async with self.container.build_child_container(
-            scope=Scope.REQUEST,
-            context={Update: event, TelegramObject: typing.cast("Update", event).event},
-        ) as child_container:
-            data[_CHILD_CONTAINER_KEY] = child_container
-            return await handler(event, data)
+        self.in_flight += 1
+        try:
+            async with self.container.build_child_container(
+                scope=Scope.REQUEST,
+                context={Update: event, TelegramObject: typing.cast("Update", event).event},
+            ) as child_container:
+                data[_CHILD_CONTAINER_KEY] = child_container
+                return await handler(event, data)
+        finally:
+            self.in_flight -= 1
+            if not self.in_flight and self._idle is not None:
+                self._idle.set()
+
+    async def wait_idle(self) -> None:
+        if not self.in_flight:
+            return
+        self._idle = asyncio.Event()
+        try:
+            await self._idle.wait()
+        finally:
+            self._idle = None
 
 
 def setup_di(
-    dispatcher: Dispatcher, container: Container, *, auto_inject: bool = False, manage_lifespan: bool = True
+    dispatcher: Dispatcher,
+    container: Container,
+    *,
+    auto_inject: bool = False,
+    manage_lifespan: bool = True,
+    shutdown_timeout: float | None = None,
 ) -> Container:
     dispatcher[_ROOT_CONTAINER_KEY] = container
     container.add_providers(*_CONNECTION_PROVIDERS)
+    middleware = _DiMiddleware(container)
     if manage_lifespan:
+
+        async def close_root() -> None:
+            try:
+                async with asyncio.timeout(shutdown_timeout):
+                    await middleware.wait_idle()
+            except TimeoutError:
+                logger.warning("Closing the root container with %d update(s) still in flight", middleware.in_flight)
+            await container.close_async()
+
         dispatcher.startup.register(container.open)
-        dispatcher.shutdown.register(container.close_async)
-    dispatcher.update.outer_middleware(_DiMiddleware(container))
+        dispatcher.shutdown.register(close_root)
+    dispatcher.update.outer_middleware(middleware)
     if auto_inject:
         dispatcher.startup.register(functools.partial(_inject_router, dispatcher))
     return container
