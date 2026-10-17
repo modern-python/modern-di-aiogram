@@ -164,3 +164,76 @@ def test_inject_wrapper_is_async_only_for_async_handlers() -> None:
 
     assert not inspect.iscoroutinefunction(inject(sync_handler))
     assert inspect.iscoroutinefunction(inject(async_handler))
+
+
+async def test_inject_handler_with_var_keyword_gets_dependency_and_aiogram_data(
+    dispatcher: Dispatcher,
+    bot: Bot,
+) -> None:
+    seen: dict[str, typing.Any] = {}
+
+    @dispatcher.message()
+    @inject
+    async def handler(
+        message: Message,  # noqa: ARG001
+        app_instance: typing.Annotated[SimpleCreator, FromDI(SimpleCreator)],
+        **kwargs: typing.Any,  # noqa: ANN401
+    ) -> None:
+        seen["app"] = app_instance.dep1
+        seen["bot"] = kwargs.get("bot") is bot
+        seen["container_leaked"] = "modern_di_container" in kwargs
+
+    await dispatcher.emit_startup()
+    await dispatcher.feed_update(bot, make_message_update())
+    await dispatcher.emit_shutdown()
+
+    assert seen == {"app": "original", "bot": True, "container_leaked": False}
+
+
+def test_inject_keeps_var_keyword_last_in_wrapper_signature() -> None:
+    async def with_kwargs(
+        message: Message,
+        app: typing.Annotated[SimpleCreator, FromDI(SimpleCreator)],
+        **kwargs: typing.Any,  # noqa: ANN401
+    ) -> None: ...
+
+    async def without_kwargs(
+        message: Message,
+        app: typing.Annotated[SimpleCreator, FromDI(SimpleCreator)],
+    ) -> None: ...
+
+    def kinds(func: typing.Callable[..., typing.Any]) -> list[tuple[str, typing.Any]]:
+        return [(p.name, p.kind) for p in inspect.signature(inject(func)).parameters.values()]
+
+    assert kinds(with_kwargs) == [
+        ("message", inspect.Parameter.POSITIONAL_OR_KEYWORD),
+        ("modern_di_container", inspect.Parameter.KEYWORD_ONLY),
+        ("kwargs", inspect.Parameter.VAR_KEYWORD),
+    ]
+    assert kinds(without_kwargs) == [
+        ("message", inspect.Parameter.POSITIONAL_OR_KEYWORD),
+        ("modern_di_container", inspect.Parameter.KEYWORD_ONLY),
+    ]
+
+
+async def test_inject_fromdi_param_named_like_aiogram_data_wins_over_var_keyword(
+    dispatcher: Dispatcher,
+    bot: Bot,
+) -> None:
+    seen: dict[str, typing.Any] = {}
+
+    @dispatcher.message()
+    @inject
+    async def handler(
+        message: Message,  # noqa: ARG001
+        bot: typing.Annotated[SimpleCreator, FromDI(SimpleCreator)],
+        **kwargs: typing.Any,  # noqa: ANN401
+    ) -> None:
+        seen["bot"] = bot.dep1
+        seen["has_event_chat"] = "event_chat" in kwargs
+
+    await dispatcher.emit_startup()
+    await dispatcher.feed_update(bot, make_message_update())
+    await dispatcher.emit_shutdown()
+
+    assert seen == {"bot": "original", "has_event_chat": True}
