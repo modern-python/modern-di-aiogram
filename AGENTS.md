@@ -6,13 +6,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 `modern-di-aiogram` is an aiogram 3.x integration for
 [`modern-di`](https://github.com/modern-python/modern-di); [`CONTEXT.md`](CONTEXT.md) opens with
-what it does and owns the vocabulary — read it before naming a concept in code, a test name, or an
+what it does and owns the vocabulary. Read it before naming a concept in code, a test name, or an
 issue title. It is one of that project's integrations, each of which lives in a separate repository
 and ships as a separate PyPI package.
 
 ## Commands
 
-`just` (task runner) and `uv` (package manager). The [`justfile`](justfile) is the source of truth —
+`just` (task runner) and `uv` (package manager). The [`justfile`](justfile) is the source of truth:
 `just --list`, or read it.
 
 ## Architecture
@@ -24,7 +24,7 @@ container, so a change to either crosses the two files more often than the split
 ### Testing patterns
 
 Tests drive a real `Dispatcher` with a fake-token `Bot` and `feed_update`, and real dialogs with
-`aiogram_dialog.test_tools` — nothing about the wiring is stubbed, so a regression shows up as a
+`aiogram_dialog.test_tools`. Nothing about the wiring is stubbed, so a regression shows up as a
 handler that never sees its dependency.
 
 ## Workflow
