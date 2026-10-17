@@ -72,6 +72,8 @@ Pass `auto_inject=True` to `setup_di` to wrap every handler already registered o
 
 aiogram can still be handling updates when it emits shutdown. In polling mode with `handle_as_tasks=True` (the default), each update runs in its own task that aiogram does not wait for. The webhook handlers in `aiogram.webhook.aiohttp_server` behave the same way, both inline and with `handle_in_background=True`. Before closing the root container, `setup_di` waits until every update that entered its middleware has finished, so those handlers can still resolve `APP`-scoped dependencies and `APP` finalizers run after them.
 
+The wait and the close run after every other shutdown handler: the dispatcher's own, including handlers registered after `setup_di`, and those of every included router. On each startup, `setup_di` moves the close to the end of the shutdown handlers of the last router aiogram runs on shutdown, so all of them can still resolve `APP`-scoped dependencies. A shutdown handler added during or after startup, for example by a startup handler, or on a router included at that point, runs after the close until the next startup. If shutdown is emitted without a startup, the close stays where `setup_di` registered it among the dispatcher's shutdown handlers, so the root container still closes.
+
 The wait has no limit by default. Pass `shutdown_timeout` in seconds to cap it:
 
 ```python
@@ -80,7 +82,7 @@ setup_di(dispatcher, container, shutdown_timeout=10)
 
 When the timeout expires, the root container is closed anyway and a warning on the `modern_di_aiogram` logger says how many updates were still running. Those handlers then fail with `ContainerClosedError` on their next `APP`-scoped resolve.
 
-Some things close before this wait starts, and the plugin cannot change that. aiogram registers the FSM storage close on shutdown before `setup_di` runs, so a handler that touches FSM state during the wait may find the storage closed. In webhook mode, `SimpleRequestHandler.register` closes the bot session on aiohttp shutdown, and when it is registered before `setup_application`, that happens first too. A handler that calls the Bot API during the wait may then fail.
+Some things close before this wait starts, and the plugin cannot change that. aiogram registers the FSM storage close on shutdown before `setup_di` runs, so a handler that touches FSM state during the wait may find the storage closed. In webhook mode, `SimpleRequestHandler.register` closes the bot session on aiohttp shutdown, and when it is registered before `setup_application`, that happens first too. A handler that calls the Bot API during the wait may then fail. Your own shutdown handlers also run before the wait, so an update still in flight may find a resource they released already closed.
 
 ### Sharing a container
 
@@ -101,7 +103,7 @@ With `manage_lifespan=False` the plugin does not wait for updates in flight eith
 
 | Symbol | Description |
 |---|---|
-| `setup_di(dispatcher, container, *, auto_inject=False, manage_lifespan=True, shutdown_timeout=None)` | Stores the container on the dispatcher, registers the update/event providers, wires `dispatcher.startup`/`dispatcher.shutdown` to open/close it, and installs the per-update middleware. On shutdown it waits for updates in flight before closing, for at most `shutdown_timeout` seconds when set. With `auto_inject=True`, also wraps every handler already registered at startup. With `manage_lifespan=False`, never opens, waits or closes; per-update child containers are still built and closed. Returns the container |
+| `setup_di(dispatcher, container, *, auto_inject=False, manage_lifespan=True, shutdown_timeout=None)` | Stores the container on the dispatcher, registers the update/event providers, opens it on `dispatcher.startup` and closes it after every shutdown handler of the dispatcher and its routers, and installs the per-update middleware. On shutdown it waits for updates in flight before closing, for at most `shutdown_timeout` seconds when set. With `auto_inject=True`, also wraps every handler already registered at startup. With `manage_lifespan=False`, never opens, waits or closes; per-update child containers are still built and closed. Returns the container |
 | `FromDI(dependency)` | Inert marker (used with `@inject`) that resolves a provider or type from the per-update child container |
 | `inject(handler)` | Decorator for an aiogram handler, sync or async; resolves its `FromDI`-annotated parameters and returns a wrapper of the same kind. Not needed when `setup_di(..., auto_inject=True)` is used. Raises `RuntimeError` naming `setup_di` when an update reaches it without the middleware installed |
 | `fetch_di_container(dispatcher)` | Returns the root `Container` stored on the dispatcher |

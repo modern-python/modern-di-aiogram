@@ -92,8 +92,20 @@ def setup_di(
                 logger.warning("Closing the root container with %d update(s) still in flight", middleware.in_flight)
             await container.close_async()
 
-        dispatcher.startup.register(container.open)
-        dispatcher.shutdown.register(close_root)
+        close_observer = dispatcher.shutdown
+        close_observer.register(close_root)
+
+        def open_root() -> None:
+            nonlocal close_observer
+            container.open()
+            close_observer.handlers = [
+                handler for handler in close_observer.handlers if handler.callback is not close_root
+            ]
+            *_, last_router = dispatcher.chain_tail
+            close_observer = last_router.shutdown
+            close_observer.register(close_root)
+
+        dispatcher.startup.register(open_root)
     dispatcher.update.outer_middleware(middleware)
     if auto_inject:
         dispatcher.startup.register(functools.partial(_inject_router, dispatcher))
