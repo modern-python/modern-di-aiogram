@@ -5,7 +5,8 @@ import warnings
 
 import pytest
 from aiogram import Bot, Dispatcher
-from aiogram.types import Message
+from aiogram.dispatcher.event.bases import UNHANDLED
+from aiogram.types import Message, Update
 from modern_di import Container, Group, Scope, providers
 
 from modern_di_aiogram import FromDI, inject, setup_di
@@ -237,3 +238,12 @@ async def test_inject_fromdi_param_named_like_aiogram_data_wins_over_var_keyword
     await dispatcher.emit_shutdown()
 
     assert seen == {"bot": "original", "has_event_chat": True}
+
+
+async def test_an_unknown_update_type_is_left_to_aiogram(dispatcher: Dispatcher, bot: Bot) -> None:
+    await dispatcher.emit_startup()
+    with pytest.warns(RuntimeWarning, match="Detected unknown update type"):
+        result = await dispatcher.feed_update(bot, Update(update_id=1))
+    await dispatcher.emit_shutdown()
+
+    assert result is UNHANDLED

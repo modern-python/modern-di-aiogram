@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import functools
 import inspect
 import logging
@@ -8,6 +9,7 @@ import aiogram
 from aiogram import BaseMiddleware, Dispatcher
 from aiogram.dispatcher.event.handler import HandlerObject
 from aiogram.types import TelegramObject, Update
+from aiogram.types.update import UpdateTypeLookupError
 from modern_di import Container, Scope, integrations, providers
 
 
@@ -48,12 +50,12 @@ class _DiMiddleware(BaseMiddleware):
         event: TelegramObject,
         data: dict[str, typing.Any],
     ) -> typing.Any:  # noqa: ANN401
+        context: dict[type[typing.Any], typing.Any] = {Update: event}
+        with contextlib.suppress(UpdateTypeLookupError):
+            context[TelegramObject] = typing.cast("Update", event).event
         self.in_flight += 1
         try:
-            async with self.container.build_child_container(
-                scope=Scope.REQUEST,
-                context={Update: event, TelegramObject: typing.cast("Update", event).event},
-            ) as child_container:
+            async with self.container.build_child_container(scope=Scope.REQUEST, context=context) as child_container:
                 data[_CHILD_CONTAINER_KEY] = child_container
                 return await handler(event, data)
         finally:
