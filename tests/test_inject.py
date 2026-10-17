@@ -1,5 +1,7 @@
 import contextlib
+import inspect
 import typing
+import warnings
 
 import pytest
 from aiogram import Bot, Dispatcher
@@ -113,3 +115,52 @@ async def test_inject_without_setup_di_names_the_fix(bot: Bot) -> None:
 
     with pytest.raises(RuntimeError, match=r"setup_di\(dispatcher, container\)"):
         await dispatcher.feed_update(bot, make_message_update())
+
+
+async def test_inject_runs_sync_handler_once(dispatcher: Dispatcher, bot: Bot) -> None:
+    calls: list[str] = []
+
+    @dispatcher.message()
+    @inject
+    def handler(
+        message: Message,  # noqa: ARG001
+        app_instance: typing.Annotated[SimpleCreator, FromDI(SimpleCreator)],
+    ) -> None:
+        calls.append(app_instance.dep1)
+
+    await dispatcher.emit_startup()
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        await dispatcher.feed_update(bot, make_message_update())
+    await dispatcher.emit_shutdown()
+
+    assert calls == ["original"]
+
+
+async def test_inject_sync_handler_forwards_declared_container_param(dispatcher: Dispatcher, bot: Bot) -> None:
+    seen: dict[str, typing.Any] = {}
+
+    @dispatcher.message()
+    @inject
+    def handler(
+        message: Message,  # noqa: ARG001
+        modern_di_container: Container,
+        app_instance: typing.Annotated[SimpleCreator, FromDI(SimpleCreator)],
+    ) -> None:
+        seen["got_container"] = isinstance(modern_di_container, Container)
+        seen["app"] = app_instance.dep1
+
+    await dispatcher.emit_startup()
+    await dispatcher.feed_update(bot, make_message_update())
+    await dispatcher.emit_shutdown()
+
+    assert seen == {"got_container": True, "app": "original"}
+
+
+def test_inject_wrapper_is_async_only_for_async_handlers() -> None:
+    def sync_handler(app: typing.Annotated[SimpleCreator, FromDI(SimpleCreator)]) -> None: ...
+
+    async def async_handler(app: typing.Annotated[SimpleCreator, FromDI(SimpleCreator)]) -> None: ...
+
+    assert not inspect.iscoroutinefunction(inject(sync_handler))
+    assert inspect.iscoroutinefunction(inject(async_handler))

@@ -71,7 +71,7 @@ T = typing.TypeVar("T")
 FromDI = integrations.from_di
 
 
-def inject(func: typing.Callable[..., typing.Awaitable[T]]) -> typing.Callable[..., typing.Awaitable[T]]:
+def inject(func: typing.Callable[..., T]) -> typing.Callable[..., T]:
     di_params = integrations.parse_markers(func)
     if not di_params:
         integrations.mark_injected(func)
@@ -85,21 +85,36 @@ def inject(func: typing.Callable[..., typing.Awaitable[T]]) -> typing.Callable[.
             inspect.Parameter(_CHILD_CONTAINER_KEY, kind=inspect.Parameter.KEYWORD_ONLY, annotation=Container),
         )
 
-    async def wrapper(*args: typing.Any, **kwargs: typing.Any) -> T:  # noqa: ANN401
+    def resolve(kwargs: dict[str, typing.Any]) -> dict[str, typing.Any]:
         container = _fetch_child_container(kwargs)
         if container_param_injected:
             del kwargs[_CHILD_CONTAINER_KEY]
-        resolved = integrations.resolve_markers(container, di_params)
-        return await func(*args, **kwargs, **resolved)
+        return integrations.resolve_markers(container, di_params)
+
+    wrapper: typing.Callable[..., typing.Any]
+    if inspect.iscoroutinefunction(func):
+
+        async def async_wrapper(*args: typing.Any, **kwargs: typing.Any) -> typing.Any:  # noqa: ANN401
+            resolved = resolve(kwargs)
+            return await func(*args, **kwargs, **resolved)
+
+        wrapper = async_wrapper
+    else:
+
+        def sync_wrapper(*args: typing.Any, **kwargs: typing.Any) -> T:  # noqa: ANN401
+            resolved = resolve(kwargs)
+            return func(*args, **kwargs, **resolved)
+
+        wrapper = sync_wrapper
 
     # NOT functools.wraps: aiogram unwraps __wrapped__ and would defeat __signature__.
     wrapper.__name__ = func.__name__  # ty: ignore[unresolved-attribute]
     wrapper.__qualname__ = func.__qualname__  # ty: ignore[unresolved-attribute]
     wrapper.__doc__ = func.__doc__
     wrapper.__module__ = func.__module__
-    wrapper.__signature__ = original_signature.replace(parameters=visible_params)  # ty: ignore[unresolved-attribute]
+    wrapper.__signature__ = original_signature.replace(parameters=visible_params)  # ty: ignore[invalid-assignment]
     integrations.mark_injected(wrapper)
-    return wrapper
+    return typing.cast(typing.Callable[..., T], wrapper)
 
 
 def _inject_router(router: aiogram.Router) -> None:
@@ -115,4 +130,6 @@ def _inject_router(router: aiogram.Router) -> None:
                         flags=handler.flags,
                     )
                     handler.callback = wrapped.callback
+                    handler.awaitable = wrapped.awaitable
                     handler.params = wrapped.params
+                    handler.varkw = wrapped.varkw
