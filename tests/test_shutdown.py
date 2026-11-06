@@ -48,7 +48,7 @@ def _make_dispatcher(slow: SlowHandler, **setup_kwargs: typing.Any) -> tuple[Dis
         slow.shutdown_started.set()
         await emit_shutdown(*args, **kwargs)
 
-    dispatcher.emit_shutdown = mark_shutdown_started  # ty: ignore[invalid-assignment]
+    dispatcher.emit_shutdown = mark_shutdown_started
     container = setup_di(dispatcher, Container(groups=[Resources]), **setup_kwargs)
 
     @dispatcher.message()
