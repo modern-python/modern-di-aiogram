@@ -174,8 +174,8 @@ def inject(func: typing.Callable[..., T]) -> typing.Callable[..., T]:
         wrapper = sync_wrapper
 
     # NOT functools.wraps: aiogram unwraps __wrapped__ and would defeat __signature__.
-    wrapper.__name__ = func.__name__  # ty: ignore[unresolved-attribute]
-    wrapper.__qualname__ = func.__qualname__  # ty: ignore[unresolved-attribute]
+    wrapper.__name__ = func.__name__  # ty: ignore[missing-attribute]
+    wrapper.__qualname__ = func.__qualname__  # ty: ignore[missing-attribute]
     wrapper.__doc__ = func.__doc__
     wrapper.__module__ = func.__module__
     wrapper.__signature__ = original_signature.replace(parameters=visible_params)  # ty: ignore[invalid-assignment]
