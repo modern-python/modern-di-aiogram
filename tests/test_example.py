@@ -16,7 +16,7 @@ async def test_example_greets_using_real_di(bot: Bot, monkeypatch: pytest.Monkey
         method: TelegramMethod[typing.Any],
         _request_timeout: int | None = None,
     ) -> None:
-        sent["text"] = method.text  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
+        sent["text"] = method.text  # type: ignore[attr-defined]  # ty: ignore[missing-attribute]
 
     # Only the transport (Bot's outgoing API call) is a double; DI resolution below is real.
     monkeypatch.setattr(Bot, "__call__", fake_call)
