@@ -115,6 +115,8 @@ With `manage_lifespan=False` the plugin does not wait for updates in flight eith
 - [PyPI](https://pypi.org/project/modern-di-aiogram)
 - [License](https://github.com/modern-python/modern-di-aiogram/blob/main/LICENSE)
 
+If this project saves you time, consider giving it a star on GitHub.
+
 ## Part of `modern-python`
 
 Built on [`modern-di`](https://github.com/modern-python/modern-di), a dependency-injection framework with an IoC container and scopes.
